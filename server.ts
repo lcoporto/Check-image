@@ -40,7 +40,7 @@ async function startServer() {
   // Main Image Analysis API
   app.post("/api/analyze", async (req: Request, res: Response) => {
     try {
-      const { image, fileName, fileSize, mimeType, mode } = req.body;
+      const { image, fileName, fileSize, mimeType, mode, forensicFocus, subpixelSampling, noiseThreshold } = req.body;
 
       if (!image) {
         return res.status(400).json({ error: "Nenhuma imagem foi fornecida para análise." });
@@ -66,57 +66,176 @@ async function startServer() {
       // Check if we use simulated analysis (when API Key is missing or user requests a demo)
       if (!ai) {
         // Fallback simulation
-        const mockResult = generateSimulatedResult(fileName || "image.jpg", fileSize || 102400, detectedMimeType, mode);
+        const mockResult = generateSimulatedResult(
+          fileName || "image.jpg", 
+          fileSize || 102400, 
+          detectedMimeType, 
+          mode, 
+          forensicFocus, 
+          subpixelSampling, 
+          noiseThreshold
+        );
         return res.json(mockResult);
       }
 
       // Analyze image with Gemini
+      const systemInstruction = `Você é o perito forense sênior em imagem digital da Porto Check Image. Sua função é auditar imagens enviadas com o mais alto rigor técnico e científico, emitindo um parecer pericial em português que separe fotos autênticas, fotos manipuladas digitalmente ou híbridas, e imagens integralmente geradas por IA (como Midjourney, DALL-E, Stable Diffusion, Adobe Firefly, GANs).
+
+Durante o escaneamento físico e semântico da imagem, você deve realizar as seguintes verificações periciais:
+1. ARTEFATOS GLOBAIS DE IA:
+   - Suavizações anômalas de gradiente em pele ("aparência cerosa" de rostos) e cabelos.
+   - Detalhes dactilares aberrantes (mãos com seis dedos, falanges extras, unhas fundidas).
+   - Incoerência geométrica em acessórios pequenos (brincos que mudam de estilo, golas assimétricas, óculos mesclados com a pele).
+   - Elementos bizarros em segundos planos (texto com caracteres irreais, ornamentos incompreensíveis ou derretidos).
+2. CONSISTÊNCIA DE ILUMINAÇÃO & GEOMETRIA:
+   - Reflexos especulares incongruentes nas córneas ou em óculos (orientações inconsistentes com a principal fonte de luz).
+   - Sombras projetadas de forma fisicamente impossível ou em direções concorrentes a partir de uma única fonte luminosa projetada.
+   - Falta de atenuação física nas transições de foco (mesclas abruptas ou blurs artificiais sem relação com profundidade de campo óptica).
+3. ESTRUTURA DE RUÍDO & COMPRESSÃO FORENSE:
+   - Descontinuidade do ruído térmico/estocástico estático do sensor (ex: áreas transplantadas de outra foto ou sintéticas sem o grão natural presente no resto do arquivo).
+   - Sinais de dupla compressão em grades JPEG de 8x8 pixels nas bordas de elementos sobrepostos.
+   - Bordas com vestígios óbvios de interpolações bi-cúbicas ou suavização mecânica de pixels por programas como Photoshop / GIMP.
+4. METADADOS E ESTRUTURA METADADO-FÍSICA:
+   - Coerência teórica entre marcas de compressão visuais e possíveis metadados de câmera.
+
+Seja extremamente analítico, formal, preciso e use a terminologia técnica padrão de computação forense criminal (ex: "ruído cromático de quantização", "re-amostragem bilinear de bordas", "descompasso volumétrico de iluminação", "padrões espaciais periódicos", etc.). Forneça suas explicações detalhadas em bom idioma português técnico.`;
+
       const promptText = `
-        You are an advanced digital image forensics AI expert.
-        ${mode === 'ultra' ? 'CRITICAL: You are running in ULTRA FORENSIC HIGH ACCURACY MODE. Conduct deep, multi-phase sub-pixel scanning, evaluate fine-grained double-JPEG compression block grids, check local CMOS thermal sensor noise variances (PRNU footprints) across the color channels, analyze subtle 3D lighting ambient occlusion mismatches, and search for minute generative texture artifacts or brushstrokes. Increase diagnostic detail in the regional findings and make sure your confidence rating reflects this exhaustive auditing.' : ''}
-        Analyze the uploaded image for any signs of:
-        1. AI generative signatures: Diffusion artifacts (DALL-E, Midjourney, Stable Diffusion), GAN noise, fingerprint frequencies, spectral anomalies, waxy skins, mutated human parts (hands, fingers, eyes, symmetry).
-        2. Forensic changes: Double JPEG compression, missing camera sensor noise, software blending.
-        3. Lighting and Shadow inconsistencies: Uneven light rays, shadows cast in contradictory directions, inconsistent light reflections on eyes/glasses.
-        4. Hybrid compositions (PRD Section 3.3): Sections of AI-generated content overlaid on authentic photographs (e.g. AI face on real body, a synthetic tiger on a real forest background, or AI sky background on real houses).
+        EXECUTE UMA AUDITORIA FORENSE MULTI-NÍVEL DE ALTA ACURÁCIA NESTES DADOS DE IMAGEM.
+        
+        MODO DE ANÁLISE SOLICITADO: ${mode ? mode.toUpperCase() : "COMPLETO"}
+        
+        CALIBRAÇÃO DE PRECISÃO SOLICITADA PELO USUÁRIO:
+        - Foco Forense Primário: ${forensicFocus ? forensicFocus.toUpperCase() : "GERAL"}
+        - Super-Amostragem: ${subpixelSampling ? subpixelSampling.toUpperCase() : "PADRÃO"}
+        - Sensibilidade do Canal Desviador de Ruídos: ${noiseThreshold !== undefined ? noiseThreshold : 75}%
 
-        Return a highly accurate, structured JSON report. You MUST follow this JSON schema:
-        {
-          "authenticityScore": number (0 to 100. where 0 is purely artificial/manipulated/AI, and 100 is highly authentic direct camera capture without manipulations),
-          "confidence": number (0.0 to 1.0, representing state confidence),
-          "layers": {
-            "globalArtifacts": { "score": number, "findings": "string detailing findings in AI generative artifacts" },
-            "internalConsistency": { "score": number, "findings": "string detailing shadow, lighting, or composition consistency" },
-            "metadataForensic": { "score": number, "findings": "string detailing EXIF markers consistency or software presence" },
-            "noiseCompression": { "score": number, "findings": "string detailing noise matches, sensor footprints, double compression signs" }
-          },
-          "regions": [
-            {
-              "id": "string (unique ID like r1, r2, etc)",
-              "label": "string (human readable label, e.g. 'Rosto principal', 'Fundo sintetizado', 'Reflexo nos olhos')",
-              "category": "string ('real' | 'manipulated' | 'ai_generated')",
-              "suspicionScore": number (0 to 100, where higher is more suspicious),
-              "findings": "string explaining why this region is flagged or confirmed",
-              "boundingBox": [number, number, number, number] (normalized percentage bounding box coordinates: [x, y, width, height] where x, y are top-left corners from 0 to 100, and width, height are dimensions from 0 to 100)
-            }
-          ],
-          "metadata": {
-            "cameraModel": "string",
-            "software": "string",
-            "creationDate": "string",
-            "modifyDate": "string",
-            "compression": "string",
-            "hasExif": boolean,
-            "exifAnomalyDetected": boolean,
-            "exifAnomalyDetails": "string"
-          }
-        }
+        INSTRUÇÕES ESTREITAS DE FOCO DE ACURÁCIA:
+        ${forensicFocus === 'ia_generativa' ? `
+        --> PRIORIDADE CRÍTICA: ATENÇÃO ESTREITA EM ARTEFATOS E ASSINATURAS DE IA GENERATIVA. Dedique 100% de precisão para escrutinar a suavidade de texturas (aparência de cera), anomalias em detalhes faciais, olhos, orelhas, dentes e unhas irracionais, e fusões degradadas que evidenciem difusão generativa ou GANs.` : ''}
+        ${forensicFocus === 'edicao' ? `
+        --> PRIORIDADE CRÍTICA: ATENÇÃO ESTREITA E ACURÁCIA EM SPLICING/EDIÇÃO/FOTOMONTAGEM FÍSICA. Procure por descontinuidade severa de contorno nas bordas dos objetos principais, vestígios de clonagem de pixels, incongruências em sombras locais, e grades de blocos de compressão JPEG sobrepostas de forma inconsistente.` : ''}
+        ${forensicFocus === 'metadados' ? `
+        --> PRIORIDADE CRÍTICA: ATENÇÃO ESTREITA EM METADADOS LÓGICOS E ESTRUTURA HEADER. Correlacione as texturas visuais de degradação com a presença de metadados padrão EXIF para avaliar possíveis camuflagens ou remoções propositais de assinatura de autoria física.` : ''}
+        ${forensicFocus === 'geral' ? `
+        --> ABORDAGEM EQUILIBRADA DE ACURÁCIA: Execute o escaneamento pericial de forma uniforme e correlata entre todas as quatro frentes investigativas.` : ''}
 
-        Be specific in "findings" for each layer and region. Translate findings into elegant Portuguese language for the Portuguese user.
-        If the image is genuine with no edits, give an authenticityScore between 85 and 100 and identify segments as 'real' with low suspicionScore.
-        If the image is fully generated by AI (like Midjourney or DALL-E), give an authenticityScore between 0 and 9, flag regions with 'ai_generated' and high suspicionScore.
-        If the image is hybrid (manipulated by adding AI objects or faces), give a score between 10 and 59, and highlight the specific artificial regions.
+        ${subpixelSampling === 'extreme' ? `
+        --> ATENÇÃO SUB-PIXEL EXTREMA (5X MULTIPASS): Investigue as descontinuidades microscópicas adicionais nos canais RGB de bordas contrastadas para identificar re-amostragens bilaterais sutis.` : ''}
+        ${subpixelSampling === 'enhanced' ? `
+        --> AMORTECEDOR DUPLO (3X MULTIPASS): Minimize potenciais falsos positivos analisando a flutuação pseudo-estática do ruído térmico em múltiplos quadrantes.` : ''}
+
+        DIRETRIZES DE ACURÁCIA CONFORME MODO:
+        ${mode === 'ultra' ? `
+        === MODO ULTRA FORENSE DE ACURÁCIA TOTAL ===
+        - Realize uma varredura sub-pixel agressiva na imagem em busca de artefatos microscópicos de difusão de IA.
+        - Examine se as frequências espaciais e a integridade de contornos demonstram hibridização de elementos (montagens).
+        - Avalie se as texturas humanas e oculares contêm anomalias estocásticas ou simetria gerada mecanicamente.
+        - Redobre os detalhes na descrição das descobertas periciais de cada uma das quatro camadas analíticas.
+        - Atribua um coeficiente de confiança analítica coerente com o escaneamento exaustivo (entre 0.95 e 1.0) e descreva os fatores microscópicos observados nas descobertas (findings).
+        ` : `
+        === MODO COMPLETO (Padrão) ===
+        - Conduza uma varredura forense ampla na estrutura visível da imagem.
+        - Destaque os principais traços de re-compressão JPEG ou imperfeições de renderização de IA.
+        - Apresente um laudo técnico claro e detalhado em português nas descobertas de cada camada.
+        `}
+
+        Dicas essenciais de calibração para o campo 'authenticityScore' (0-100):
+        - Score >= 85: Padrões físicos totalmente íntegros compatíveis com captura direta por câmera real e sem manipulações.
+        - Score entre 60 e 84: Imagem real com compressões padrão de mídias de rede social (ex: WhatsApp/Instagram) ou pequenas otimizações de cores, mas sem adulteração de conteúdo.
+        - Score entre 30 e 59: Inconclusivo ou inconsistências suspeitas. Elementos estranhados nas bordas, fusões de pixels pouco nítidas ou perda crítica de grão do sensor em áreas pontuais.
+        - Score entre 10 e 29: Imagem híbrida / amplamente manipulada. Presença de objetos simulados ou sintetizados colados sobre uma cena real.
+        - Score < 10: Imagem totalmente gerada sinteticamente por IA generativa (DALL-E, Midjourney, etc.) exibindo assinaturas irrefutáveis de modelos de difusão.
+
+        Retorne os resultados estruturados estritamente em formato JSON válido que atenda ao esquema exigido.
       `;
+
+      const responseSchema = {
+        type: Type.OBJECT,
+        properties: {
+          authenticityScore: { 
+            type: Type.INTEGER, 
+            description: "Porcentagem geral estimada de autenticidade estrutural da imagem (0 a 100)." 
+          },
+          confidence: { 
+            type: Type.NUMBER, 
+            description: "Grau de certeza técnica da inteligência operacional sobre a análise (0.00 a 1.00)." 
+          },
+          layers: {
+            type: Type.OBJECT,
+            properties: {
+              globalArtifacts: {
+                type: Type.OBJECT,
+                properties: {
+                  score: { type: Type.INTEGER, description: "Pontuação da integridade em artefatos globais (0-100)." },
+                  findings: { type: Type.STRING, description: "Descobertas detalhadas em português sobre traços de IA generativa no quadro geral." }
+                },
+                required: ["score", "findings"]
+              },
+              internalConsistency: {
+                type: Type.OBJECT,
+                properties: {
+                  score: { type: Type.INTEGER, description: "Pontuação para física de iluminação e sombras (0-100)." },
+                  findings: { type: Type.STRING, description: "Descobertas detalhadas em português sobre a harmonia física de reflexos, sombras e iluminação de perspectiva." }
+                },
+                required: ["score", "findings"]
+              },
+              metadataForensic: {
+                type: Type.OBJECT,
+                properties: {
+                  score: { type: Type.INTEGER, description: "Pontuação para consistência lógica de metadados estruturais (0-100)." },
+                  findings: { type: Type.STRING, description: "Descobertas detalhadas em português sobre a assinatura estrutural técnica ou ausência suspeita de tags EXIF/XMP." }
+                },
+                required: ["score", "findings"]
+              },
+              noiseCompression: {
+                type: Type.OBJECT,
+                properties: {
+                  score: { type: Type.INTEGER, description: "Pontuação para uniformidade de ruídos e compressão JPEG (0-100)." },
+                  findings: { type: Type.STRING, description: "Descobertas detalhadas em português sobre ruído cromático estático, sub-pixelização e gradeamento JPEG 8x8." }
+                },
+                required: ["score", "findings"]
+              }
+            },
+            required: ["globalArtifacts", "internalConsistency", "metadataForensic", "noiseCompression"]
+          },
+          regions: {
+            type: Type.ARRAY,
+            description: "Zonas de interesse identificadas por descompassos físicos ou confirmações periciais.",
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                id: { type: Type.STRING, description: "ID único da região (ex: r1, r2)." },
+                label: { type: Type.STRING, description: "Nome legível da região delimitada (ex: 'Rosto', 'Cenário de Fundo', 'Olho Esquerdo')." },
+                category: { type: Type.STRING, description: "Classificação técnica: 'real', 'manipulated', ou 'ai_generated'." },
+                suspicionScore: { type: Type.INTEGER, description: "Grau de suspicácia matemática da região delimitada (0 a 100)." },
+                findings: { type: Type.STRING, description: "Laudo específico em português justificando a classificação desta região." },
+                boundingBox: {
+                  type: Type.ARRAY,
+                  description: "Coordenadas normalizadas em porcentagem do quadro no padrão [x, y, largura, altura]. Exemplo: [15.5, 20, 30.2, 40].",
+                  items: { type: Type.NUMBER }
+                }
+              },
+              required: ["id", "label", "category", "suspicionScore", "findings", "boundingBox"]
+            }
+          },
+          metadata: {
+            type: Type.OBJECT,
+            properties: {
+              cameraModel: { type: Type.STRING, description: "Modelo presumido da câmera física de captura." },
+              software: { type: Type.STRING, description: "Software de edição ou renderização indicado nos rastros binários." },
+              creationDate: { type: Type.STRING, description: "Data de gravação / captura presumida." },
+              modifyDate: { type: Type.STRING, description: "Data de salvamento ou alteração estrutural detectada." },
+              compression: { type: Type.STRING, description: "Algoritmo ou taxa de codificação de compressão visível no arquivo." },
+              hasExif: { type: Type.BOOLEAN, description: "Presença de blocos de metadados de hardware EXIF original." },
+              exifAnomalyDetected: { type: Type.BOOLEAN, description: "Divergência de coerência interna identificada nos blocos EXIF." },
+              exifAnomalyDetails: { type: Type.STRING, description: "Brevíssima explicação em português sobre a anomalia ou integridade dos dados lógicos." }
+            },
+            required: ["cameraModel", "software", "creationDate", "modifyDate", "compression", "hasExif", "exifAnomalyDetected", "exifAnomalyDetails"]
+          }
+        },
+        required: ["authenticityScore", "confidence", "layers", "regions", "metadata"]
+      };
 
       const response = await ai.models.generateContent({
         model: "gemini-3.5-flash",
@@ -130,7 +249,9 @@ async function startServer() {
           { text: promptText },
         ],
         config: {
+          systemInstruction: systemInstruction,
           responseMimeType: "application/json",
+          responseSchema: responseSchema,
           temperature: 0.1,
         },
       });
@@ -295,7 +416,15 @@ async function startServer() {
  * Fallback local AI simulation output to ensure clean execution and pristine demos,
  * even if GEMINI_API_KEY is not configured by the user yet.
  */
-function generateSimulatedResult(fileName: string, fileSize: number, mimeType: string, mode: string) {
+function generateSimulatedResult(
+  fileName: string, 
+  fileSize: number, 
+  mimeType: string, 
+  mode: string,
+  forensicFocus?: string,
+  subpixelSampling?: string,
+  noiseThreshold?: number
+) {
   // Let's decide if this is fake based on file terms or randomize it for demonstration
   const nameLower = fileName.toLowerCase();
   let fakePercent = 15; // default genuine
@@ -307,6 +436,13 @@ function generateSimulatedResult(fileName: string, fileSize: number, mimeType: s
   } else {
     // otherwise give a moderately real output or slightly modified depending on name length
     fakePercent = Math.round(15 + (fileName.length % 4) * 20); // 15, 35, 55, 75
+  }
+
+  // If user calibrated specific focuses, let's slightly adapt the fake percent to demonstrate calibration responsiveness
+  if (forensicFocus === "ia_generativa" && nameLower.includes("ia")) {
+    fakePercent = Math.min(99, fakePercent + 5); // higher visibility on IA
+  } else if (forensicFocus === "edicao" && nameLower.includes("manipulad")) {
+    fakePercent = Math.min(99, fakePercent + 3); // higher visibility on physically manipulated structures
   }
 
   // Final Authenticity Score is (100 - fakePercent)
@@ -407,6 +543,43 @@ function generateSimulatedResult(fileName: string, fileSize: number, mimeType: s
     return "danger";
   };
 
+  // Adjust baseline confidence based on subpixel sampling selection
+  let scanConfidence = mode === "ultra" ? 0.98 : 0.92;
+  if (subpixelSampling === "extreme") {
+    scanConfidence = 0.99;
+  } else if (subpixelSampling === "standard") {
+    scanConfidence = 0.89;
+  }
+
+  // Adjust layer findings based on forensic focus
+  let artifactsFindings = authenticityScore > 60 
+    ? "Padrões globais normais. Nenhuma anomalia espectral no domínio de frequências de Fourier."
+    : "Frequência de energia anormal identificada nos quadrantes superiores. Incongruência típica de renderização sintética.";
+  
+  if (forensicFocus === "ia_generativa") {
+    artifactsFindings += " (Foco de Calibração: Modelagem de IA Generativa ativado para identificação microscópica de padrões de Difusão).";
+  }
+
+  let consistencyFindings = authenticityScore > 60
+    ? "Distribuição de sombras e pontos de reflexão luminosa coerente com uma única fonte principal."
+    : "Sombras em múltiplas direções sob o objeto central. Conflito volumétrico na modelagem tridimensional.";
+  
+  if (forensicFocus === "edicao") {
+    consistencyFindings += " (Foco de Calibração: Fotomontagem Splicing ativado; investigadas irregularidades geométricas de borda e vetorização de luminosidade local).";
+  }
+
+  let metadataFindings = hasExif 
+    ? `Marcações de metadados válidas com assinatura compatível com Apple iOS / ${exifAnomaly ? 'Edição via Canva detectada' : 'Sem edições'}.`
+    : "Metadados ausentes ou corrompidos de forma suspeita (comum em mídias baixadas de mensageiros ou ofuscadas propositalmente).";
+  
+  if (forensicFocus === "metadados") {
+    metadataFindings += " (Foco de Calibração: EXIF/XMP validado diretamente em relação ao corpo de quantização do sensor).";
+  }
+
+  let noiseFindings = authenticityScore > 60
+    ? `Ruído cromático uniforme correspondente a sensores CMOS convencionais com fatores normais de atenuação (Limite de canal: ${noiseThreshold || 75}%).`
+    : `Descontinuidade severa no ruído local. A porção central possui ruído residual consideravelmente menor que o fundo (Sensibilidade tolerável: ${noiseThreshold || 75}%).`;
+
   return {
     fileName,
     fileSize,
@@ -415,7 +588,7 @@ function generateSimulatedResult(fileName: string, fileSize: number, mimeType: s
     mode: mode || "completo",
     timestamp: new Date().toISOString(),
     authenticityScore,
-    confidence: mode === "ultra" ? 0.98 : 0.92,
+    confidence: scanConfidence,
     interpretationBand: {
       label: bandLabel,
       description: bandDesc,
@@ -426,30 +599,22 @@ function generateSimulatedResult(fileName: string, fileSize: number, mimeType: s
     layers: {
       globalArtifacts: {
         score: globalScore,
-        findings: authenticityScore > 60 
-          ? "Padrões globais normais. Nenhuma anomalia espectral no domínio de frequências de Fourier."
-          : "Frequência de energia anormal identificada nos quadrantes superiores. Incongruência típica de renderização sintética.",
+        findings: artifactsFindings,
         status: formatStatus(globalScore),
       },
       internalConsistency: {
         score: consistencyScore,
-        findings: authenticityScore > 60
-          ? "Distribuição de sombras e pontos de reflexão luminosa coerente com uma única fonte principal."
-          : "Sombras em múltiplas direções sob o objeto central. Conflito volumétrico na modelagem tridimensional.",
+        findings: consistencyFindings,
         status: formatStatus(consistencyScore),
       },
       metadataForensic: {
         score: metadataScore,
-        findings: hasExif 
-          ? `Marcações de metadados válidas com assinatura compatível com Apple iOS / ${exifAnomaly ? 'Edição via Canva detectada' : 'Sem edições'}.`
-          : "Metadados ausentes ou corrompidos de forma suspeita (comum em mídias baixadas de mensageiros ou ofuscadas propositalmente).",
+        findings: metadataFindings,
         status: formatStatus(metadataScore),
       },
       noiseCompression: {
         score: noiseScore,
-        findings: authenticityScore > 60
-          ? "Ruído cromático uniforme correspondente a sensores CMOS convencionais com fatores normais de atenuação."
-          : "Descontinuidade severa no ruído local. A porção central possui ruído residual consideravelmente menor que o fundo.",
+        findings: noiseFindings,
         status: formatStatus(noiseScore),
       },
     },

@@ -56,6 +56,11 @@ export default function App() {
   // Analysis mode selected
   const [selectedMode, setSelectedMode] = useState<AnalysisMode>(AnalysisMode.COMPLETO);
 
+  // Forensic Accuracy Calibration states
+  const [forensicFocus, setForensicFocus] = useState<"geral" | "ia_generativa" | "edicao" | "metadados">("geral");
+  const [subpixelSampling, setSubpixelSampling] = useState<"standard" | "enhanced" | "extreme">("enhanced");
+  const [noiseThreshold, setNoiseThreshold] = useState<number>(75);
+
   // Report Modal layout state
   const [showLaudoModal, setShowLaudoModal] = useState(false);
 
@@ -173,6 +178,9 @@ export default function App() {
     setHeatmapOpacity(0.35);
     setSuspicionThreshold(10);
     setSelectedMode(AnalysisMode.COMPLETO);
+    setForensicFocus("geral");
+    setSubpixelSampling("enhanced");
+    setNoiseThreshold(75);
     setSelectedRegionId(null);
     setVisualizerTab("heatmap");
     setActiveTab("geral");
@@ -247,7 +255,10 @@ export default function App() {
           fileName: name,
           fileSize: size,
           mimeType: type,
-          mode: selectedMode
+          mode: selectedMode,
+          forensicFocus: forensicFocus,
+          subpixelSampling: subpixelSampling,
+          noiseThreshold: noiseThreshold
         }),
       });
 
@@ -462,6 +473,152 @@ export default function App() {
                   </span>
                   <span className="text-[8px] opacity-90 font-bold text-purple-200">Acurácia</span>
                 </button>
+              </div>
+
+              {/* Painel de Calibração de Alta Precisão */}
+              <div className="mt-4 border-t border-slate-700/40 pt-4 text-left">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[10px] uppercase font-mono font-bold tracking-wider text-slate-400 flex items-center gap-1.5">
+                    <Binary className="w-3.5 h-3.5 text-cyan-505 shrink-0" />
+                    Calibração de Precisão
+                  </span>
+                  <span className="text-[9px] px-1.5 py-0.5 rounded bg-cyan-550/10 text-cyan-400 font-mono border border-cyan-505/20">
+                    Foco: {forensicFocus === "geral" ? "Equilibrado" : forensicFocus === "ia_generativa" ? "IA Generativa" : forensicFocus === "edicao" ? "Edições" : "EXIF"}
+                  </span>
+                </div>
+
+                <div className="space-y-3 bg-slate-900/40 p-3 rounded-xl border border-slate-700/30">
+                  {/* Foco do Algoritmo */}
+                  <div>
+                    <label className="text-[10px] font-medium text-slate-400 block mb-1">
+                      Foco Forense do Modelo
+                    </label>
+                    <div className="grid grid-cols-2 gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800">
+                      <button
+                        type="button"
+                        onClick={() => setForensicFocus("geral")}
+                        className={`py-1.5 px-2 rounded text-[10px] font-mono transition-all text-center ${
+                          forensicFocus === "geral"
+                            ? "bg-blue-600/20 text-blue-300 border border-blue-500/40 font-bold"
+                            : "text-slate-500 hover:text-slate-350"
+                        }`}
+                      >
+                        Equilibrado
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setForensicFocus("ia_generativa")}
+                        className={`py-1.5 px-2 rounded text-[10px] font-mono transition-all text-center ${
+                          forensicFocus === "ia_generativa"
+                            ? "bg-purple-600/20 text-purple-300 border border-purple-500/40 font-bold"
+                            : "text-slate-500 hover:text-slate-350"
+                        }`}
+                      >
+                        Modelos IA
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setForensicFocus("edicao")}
+                        className={`py-1.5 px-2 rounded text-[10px] font-mono transition-all text-center ${
+                          forensicFocus === "edicao"
+                            ? "bg-amber-600/20 text-amber-300 border border-amber-500/40 font-bold"
+                            : "text-slate-500 hover:text-slate-350"
+                        }`}
+                      >
+                        Splicing/Edição
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setForensicFocus("metadados")}
+                        className={`py-1.5 px-2 rounded text-[10px] font-mono transition-all text-center ${
+                          forensicFocus === "metadados"
+                            ? "bg-emerald-600/20 text-emerald-300 border border-emerald-500/40 font-bold"
+                            : "text-slate-500 hover:text-slate-350"
+                        }`}
+                      >
+                        EXIF/Headers
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Amostragem Subpixel */}
+                  <div>
+                    <div className="flex justify-between items-center mb-1">
+                      <label className="text-[10px] font-medium text-slate-400">
+                        Varredura de Super-Amostragem
+                      </label>
+                      <span className="text-[9px] font-mono font-bold text-cyan-400">
+                        {subpixelSampling === "standard" ? "1x Multi-pass" : subpixelSampling === "enhanced" ? "3x Multi-pass" : "5x Sub-Pixel"}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800">
+                      <button
+                        type="button"
+                        onClick={() => setSubpixelSampling("standard")}
+                        className={`py-1 px-1.5 rounded text-[9px] font-mono transition-all text-center ${
+                          subpixelSampling === "standard"
+                            ? "bg-slate-800 text-slate-200 border border-slate-700 font-bold"
+                            : "text-slate-500 hover:text-slate-350"
+                        }`}
+                      >
+                        Padrão
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSubpixelSampling("enhanced")}
+                        className={`py-1 px-1.5 rounded text-[9px] font-mono transition-all text-center ${
+                          subpixelSampling === "enhanced"
+                            ? "bg-slate-800 text-slate-200 border border-slate-700 font-bold"
+                            : "text-slate-500 hover:text-slate-350"
+                        }`}
+                      >
+                        Dupla (3x)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSubpixelSampling("extreme")}
+                        className={`py-1 px-1.5 rounded text-[9px] font-mono transition-all text-center ${
+                          subpixelSampling === "extreme"
+                            ? "bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 font-bold"
+                            : "text-slate-500 hover:text-slate-350"
+                        }`}
+                      >
+                        Profunda (5x)
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Sensibilidade do Canal de Ruído */}
+                  <div>
+                    <div className="flex justify-between items-center mb-1">
+                      <label className="text-[10px] font-medium text-slate-400">
+                        Sensibilidade Estocástica do Sensor
+                      </label>
+                      <span className="text-[9px] font-mono font-bold text-cyan-400">{noiseThreshold}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={50}
+                      max={100}
+                      step={5}
+                      value={noiseThreshold}
+                      onChange={(e) => setNoiseThreshold(Number(e.target.value))}
+                      className="w-full h-1 bg-slate-950 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                    />
+                    <div className="flex justify-between text-[8px] text-slate-500 font-mono mt-1">
+                      <span>Conservadora</span>
+                      <span>Balanceada</span>
+                      <span>Forense Alta</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-2.5 flex items-center gap-2 bg-blue-500/5 rounded-xl border border-blue-500/10 p-2.5">
+                  <Sparkles className="w-4 h-4 text-cyan-400 shrink-0 animate-pulse" />
+                  <p className="text-[9.5px] text-slate-400 leading-relaxed">
+                    Ajustar o foco forense direciona os pesos cognitivos da inteligência artificial para detectar padrões micro-estruturais específicos de adulteração de pixels ou IA.
+                  </p>
+                </div>
               </div>
             </div>
 
