@@ -58,6 +58,12 @@ export default function CompareSideBySide({
   const [hoverCoord, setHoverCoord] = useState<{ x: number; y: number }>({ x: 0, y: 0 }); // values in percentage 0-100
   const [isLockZoom, setIsLockZoom] = useState(false);
 
+  // Zoom & Pan Synchronization States
+  const [zoomLevel, setZoomLevel] = useState<number>(1);
+  const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [isPanning, setIsPanning] = useState<boolean>(false);
+  const [panStart, setPanStart] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+
   const leftContainerRef = useRef<HTMLDivElement>(null);
   const rightContainerRef = useRef<HTMLDivElement>(null);
 
@@ -168,8 +174,42 @@ export default function CompareSideBySide({
     return parseFloat((bytes / Math.pow(k, cleanIndex + 1)).toFixed(2)) + " " + sizes[cleanIndex];
   };
 
+  // Mouse drag panning handlers
+  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (zoomLevel <= 1) return;
+    setIsPanning(true);
+    setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
+  };
+
+  const handleMouseUpOrLeave = () => {
+    setIsPanning(false);
+  };
+
+  const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const zoomDelta = -e.deltaY * 0.0015;
+    const nextZoom = Math.min(5, Math.max(1, zoomLevel + zoomDelta));
+    setZoomLevel(nextZoom);
+    if (nextZoom === 1) {
+      setPan({ x: 0, y: 0 });
+    }
+  };
+
   // Mouse move handler for synchronized cursor inspection
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>, isLeft: boolean) => {
+    if (isPanning) {
+      const dx = e.clientX - panStart.x;
+      const dy = e.clientY - panStart.y;
+      // Calculate dynamic bounds based on zoom level to prevent image escaping
+      const limitX = (zoomLevel - 1) * 150;
+      const limitY = (zoomLevel - 1) * 100;
+      setPan({
+        x: Math.min(limitX, Math.max(-limitX, dx)),
+        y: Math.min(limitY, Math.max(-limitY, dy)),
+      });
+      return;
+    }
+
     if (isLockZoom) return;
     const container = isLeft ? leftContainerRef.current : rightContainerRef.current;
     if (!container) return;
@@ -258,6 +298,62 @@ export default function CompareSideBySide({
             {isLockZoom ? "Coordenada Travada" : "Sincronizar Mira"}
           </button>
 
+          {/* Synced Zoom Control Group */}
+          <div className="flex items-center gap-2 bg-slate-950/70 px-2.5 py-1.5 rounded-lg border border-slate-800/80">
+            <span className="text-[10px] font-mono text-slate-400 font-bold uppercase tracking-wider hidden md:inline">Zoom Sincronizado:</span>
+            <button
+              id="zoom-out"
+              type="button"
+              onClick={() => {
+                const nextZoom = Math.max(1, zoomLevel - 0.5);
+                setZoomLevel(nextZoom);
+                if (nextZoom === 1) setPan({ x: 0, y: 0 });
+              }}
+              disabled={zoomLevel <= 1}
+              className="w-5 h-5 flex items-center justify-center bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-300 rounded font-bold text-xs cursor-pointer select-none disabled:opacity-40"
+            >
+              -
+            </button>
+            <input 
+              id="zoom-slider"
+              type="range"
+              min="1"
+              max="5"
+              step="0.1"
+              value={zoomLevel}
+              onChange={(e) => {
+                const val = parseFloat(e.target.value);
+                setZoomLevel(val);
+                if (val === 1) setPan({ x: 0, y: 0 });
+              }}
+              className="w-16 h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-blue-500"
+            />
+            <button
+              id="zoom-in"
+              type="button"
+              onClick={() => setZoomLevel(Math.min(5, zoomLevel + 0.5))}
+              disabled={zoomLevel >= 5}
+              className="w-5 h-5 flex items-center justify-center bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-300 rounded font-bold text-xs cursor-pointer select-none"
+            >
+              +
+            </button>
+            <span className="text-[10px] font-mono text-blue-400 font-bold w-10 text-right">{zoomLevel.toFixed(1)}x</span>
+            
+            {zoomLevel > 1 && (
+              <button
+                id="zoom-reset"
+                type="button"
+                onClick={() => {
+                  setZoomLevel(1);
+                  setPan({ x: 0, y: 0 });
+                }}
+                className="text-[9px] uppercase font-mono font-bold bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/30 px-1.5 py-0.5 rounded cursor-pointer"
+              >
+                Reset
+              </button>
+            )}
+          </div>
+
           {referenceImg && (
             <button
               id="clear-reference"
@@ -303,19 +399,29 @@ export default function CompareSideBySide({
               ref={leftContainerRef}
               onMouseEnter={() => setIsHoveringImage(true)}
               onMouseLeave={() => {
+                handleMouseUpOrLeave();
                 if (!isLockZoom) setIsHoveringImage(false);
               }}
+              onMouseDown={handleMouseDown}
+              onMouseUp={handleMouseUpOrLeave}
+              onWheel={handleWheel}
               onMouseMove={(e) => handleMouseMove(e, true)}
-              className="relative aspect-video max-h-[360px] bg-slate-950 rounded-lg overflow-hidden border border-slate-800 flex items-center justify-center cursor-cell select-none"
+              className={`relative aspect-video max-h-[360px] bg-slate-950 rounded-lg overflow-hidden border border-slate-800 flex items-center justify-center select-none ${
+                zoomLevel > 1 ? (isPanning ? "cursor-grabbing" : "cursor-grab") : "cursor-cell"
+              }`}
             >
               <img
                 src={referenceImg.imageUrl}
                 alt="Reference Authentic File"
-                className="w-full h-full object-contain pointer-events-none"
+                style={{
+                  transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoomLevel})`,
+                  transformOrigin: "center center",
+                }}
+                className="w-full h-full object-contain pointer-events-none transition-transform duration-75 ease-out"
               />
 
               {/* Multi-lens Synchronized Zoom overlay */}
-              {isHoveringImage && (
+              {isHoveringImage && zoomLevel === 1 && (
                 <div 
                   className="absolute pointer-events-none border-2 border-dashed border-emerald-400 rounded-full shadow-2xl w-20 h-20 overflow-hidden flex items-center justify-center"
                   style={{
@@ -332,8 +438,13 @@ export default function CompareSideBySide({
               )}
 
               {/* Coordinates Indicator */}
-              <div className="absolute bottom-2 left-2 bg-slate-900/80 backdrop-blur text-[9px] font-mono text-slate-400 px-1.5 py-0.5 rounded border border-slate-800">
-                X: {Math.round(hoverCoord.x)}% | Y: {Math.round(hoverCoord.y)}%
+              <div className="absolute bottom-2 left-2 bg-slate-900/90 backdrop-blur text-[9px] font-mono text-slate-400 px-1.5 py-0.5 rounded border border-slate-800 flex items-center gap-1.5">
+                <span>X: {Math.round(hoverCoord.x)}% | Y: {Math.round(hoverCoord.y)}%</span>
+                {zoomLevel > 1 && (
+                  <span className="text-blue-400 border-l border-slate-850 pl-1.5 font-bold animate-pulse">
+                    ZOOM: {zoomLevel.toFixed(1)}x (Arraste para mover)
+                  </span>
+                )}
               </div>
             </div>
           ) : (
@@ -464,21 +575,35 @@ export default function CompareSideBySide({
             ref={rightContainerRef}
             onMouseEnter={() => setIsHoveringImage(true)}
             onMouseLeave={() => {
+              handleMouseUpOrLeave();
               if (!isLockZoom) setIsHoveringImage(false);
             }}
+            onMouseDown={handleMouseDown}
+            onMouseUp={handleMouseUpOrLeave}
+            onWheel={handleWheel}
             onMouseMove={(e) => handleMouseMove(e, false)}
-            className="relative aspect-video max-h-[360px] bg-slate-950 rounded-lg overflow-hidden border border-slate-800 flex items-center justify-center cursor-cell select-none"
+            className={`relative aspect-video max-h-[360px] bg-slate-950 rounded-lg overflow-hidden border border-slate-800 flex items-center justify-center select-none ${
+              zoomLevel > 1 ? (isPanning ? "cursor-grabbing" : "cursor-grab") : "cursor-cell"
+            }`}
           >
             <img
               src={suspectImageUrl}
               alt="Suspect Forensic Target File"
-              className="w-full h-full object-contain pointer-events-none"
+              style={{
+                transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoomLevel})`,
+                transformOrigin: "center center",
+              }}
+              className="w-full h-full object-contain pointer-events-none transition-transform duration-75 ease-out"
             />
 
             {/* Heatmap overlay bounding boxes on target side! */}
             {overlayHeatmap && suspectAnalysis && (
               <svg
-                className="absolute inset-0 w-full h-full pointer-events-none"
+                className="absolute inset-0 w-full h-full pointer-events-none transition-transform duration-75 ease-out"
+                style={{
+                  transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoomLevel})`,
+                  transformOrigin: "center center",
+                }}
                 viewBox="0 0 100 100"
                 preserveAspectRatio="none"
               >
@@ -508,7 +633,7 @@ export default function CompareSideBySide({
             )}
 
             {/* Loop magnifying glass overlay */}
-            {isHoveringImage && (
+            {isHoveringImage && zoomLevel === 1 && (
               <div 
                 className="absolute pointer-events-none border-2 border-dashed border-rose-400 rounded-full shadow-2xl w-20 h-20 overflow-hidden flex items-center justify-center"
                 style={{
@@ -525,8 +650,13 @@ export default function CompareSideBySide({
             )}
 
             {/* Coordinate Label */}
-            <div className="absolute bottom-2 left-2 bg-slate-900/80 backdrop-blur text-[9px] font-mono text-slate-400 px-1.5 py-0.5 rounded border border-slate-800">
-              X: {Math.round(hoverCoord.x)}% | Y: {Math.round(hoverCoord.y)}%
+            <div className="absolute bottom-2 left-2 bg-slate-900/90 backdrop-blur text-[9px] font-mono text-slate-400 px-1.5 py-0.5 rounded border border-slate-800 flex items-center gap-1.5">
+              <span>X: {Math.round(hoverCoord.x)}% | Y: {Math.round(hoverCoord.y)}%</span>
+              {zoomLevel > 1 && (
+                <span className="text-blue-400 border-l border-slate-850 pl-1.5 font-bold animate-pulse">
+                  ZOOM: {zoomLevel.toFixed(1)}x (Arraste para mover)
+                </span>
+              )}
             </div>
           </div>
 

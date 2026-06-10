@@ -307,7 +307,7 @@ Seja extremamente analítico, formal, preciso e use a terminologia técnica padr
         bgColor = "bg-amber-500/10";
         borderColor = "border-amber-500/20";
       } else if (finalScore >= 10) {
-        bandLabel = "Provavelmente sintética";
+        bandLabel = "Provavelmente manipulada";
         bandDesc = "Fortes indícios de adulteração, manipulação parcial ou inserção de elementos artificiais sintéticos misturados a cenas reais.";
         classColor = "text-orange-600 dark:text-orange-400";
         bgColor = "bg-orange-500/10";
@@ -484,7 +484,7 @@ function generateSimulatedResult(
     bgColor = "bg-amber-500/10";
     borderColor = "border-amber-500/20";
   } else if (authenticityScore >= 10) {
-    bandLabel = "Provavelmente sintética";
+    bandLabel = "Provavelmente manipulada";
     bandDesc = "Sinais visíveis de alteração por software de edição avançado ou inserção de recortes criados por inteligência artificial genérica.";
     classColor = "text-orange-600 dark:text-orange-400";
     bgColor = "bg-orange-500/10";

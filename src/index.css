@@ -23,3 +23,181 @@ body {
   font-family: var(--font-mono);
 }
 
+/* High Contrast Mode CSS Overrides */
+.high-contrast {
+  background-color: #000000 !important;
+  color: #ffffff !important;
+}
+
+/* Force backgrounds of cards, headers, panels, sidebars to be black */
+.high-contrast header,
+.high-contrast main,
+.high-contrast section,
+.high-contrast div,
+.high-contrast p,
+.high-contrast h1,
+.high-contrast h2,
+.high-contrast h3,
+.high-contrast h4,
+.high-contrast h5,
+.high-contrast h6,
+.high-contrast span,
+.high-contrast label,
+.high-contrast li {
+  background-color: #000000 !important;
+  color: #ffffff !important;
+}
+
+/* High Contrast Yellow for highlighted texts/icons */
+.high-contrast .text-blue-400,
+.high-contrast .text-cyan-400,
+.high-contrast .text-yellow-400,
+.high-contrast .text-orange-400,
+.high-contrast .text-amber-400,
+.high-contrast .text-purple-400,
+.high-contrast .text-emerald-400,
+.high-contrast .text-rose-500,
+.high-contrast .text-blue-500,
+.high-contrast .text-cyan-500,
+.high-contrast .text-rose-600,
+.high-contrast .text-purple-600,
+.high-contrast .text-indigo-650,
+.high-contrast svg {
+  color: #ffff00 !important;
+  fill: none;
+}
+
+.high-contrast svg path,
+.high-contrast svg circle,
+.high-contrast svg rect,
+.high-contrast svg line,
+.high-contrast svg polyline,
+.high-contrast svg polygon {
+  stroke: #ffff00 !important;
+}
+
+/* Thick white borders for card boundaries and layout sections */
+.high-contrast .border,
+.high-contrast .border-b,
+.high-contrast .border-t,
+.high-contrast .border-l,
+.high-contrast .border-r,
+.high-contrast .border-slate-800,
+.high-contrast .border-slate-700,
+.high-contrast .border-slate-800\/80,
+.high-contrast .border-slate-700\/60,
+.high-contrast .border-slate-700\/50,
+.high-contrast .border-blue-500\/30,
+.high-contrast .border-emerald-500\/30,
+.high-contrast .border-amber-500\/20 {
+  border-color: #ffffff !important;
+  border-width: 2px !important;
+}
+
+/* Controls: buttons, select, inputs, textarea */
+.high-contrast button,
+.high-contrast select,
+.high-contrast input,
+.high-contrast textarea,
+.high-contrast a {
+  background-color: #000000 !important;
+  color: #ffffff !important;
+  border: 2px solid #ffffff !important;
+  border-radius: 4px !important;
+  text-decoration: underline !important;
+  font-weight: 700 !important;
+  opacity: 1 !important;
+}
+
+/* Active / Hover style: yellow background, black text */
+.high-contrast button:hover,
+.high-contrast select:hover,
+.high-contrast input:hover,
+.high-contrast textarea:hover,
+.high-contrast a:hover {
+  background-color: #ffff00 !important;
+  color: #000000 !important;
+  border-color: #ffff00 !important;
+  text-decoration: underline !important;
+}
+
+.high-contrast button:hover svg *,
+.high-contrast a:hover svg * {
+  stroke: #000000 !important;
+}
+
+/* Selected Tab or Premium Active High Contrast Alert Badge */
+.high-contrast button[role="tab"][aria-selected="true"],
+.high-contrast .bg-blue-600,
+.high-contrast .bg-slate-950,
+.high-contrast button#btn-accessibility-mode[aria-pressed="true"] {
+  background-color: #ffff00 !important;
+  color: #000000 !important;
+  border-color: #ffff00 !important;
+  text-decoration: underline !important;
+}
+
+.high-contrast button[role="tab"][aria-selected="true"] *,
+.high-contrast .bg-blue-600 *,
+.high-contrast button#btn-accessibility-mode[aria-pressed="true"] * {
+  color: #000000 !important;
+  background-color: #ffff00 !important;
+}
+
+/* Ensure heatmap container image zoom controls, heatmaps, and bounding boxes remain visible */
+.high-contrast #workspace-compare-left img,
+.high-contrast #workspace-compare-left svg,
+.high-contrast #panel-vis-heatmap img,
+.high-contrast #workspace-compare-right img,
+.high-contrast .relative img {
+  filter: contrast(120%) brightness(100%) !important;
+}
+
+/* Do not color image elements black */
+.high-contrast img {
+  background-color: transparent !important;
+}
+
+/* Ensure range input slider is readable */
+.high-contrast input[type="range"] {
+  accent-color: #ffff00 !important;
+  color: #ffff00 !important;
+  background-color: #333333 !important;
+  text-decoration: none !important;
+}
+
+/* Increase base contrast and legibility across text elements */
+.high-contrast main * {
+  font-size: 1.05rem !important; /* Slightly larger text for key readouts */
+  line-height: 1.5 !important;
+}
+
+.high-contrast main button *,
+.high-contrast main span,
+.high-contrast p,
+.high-contrast table * {
+  font-size: 0.95rem !important;
+}
+
+/* Heatmap inspection opacity transition & fade-in */
+#panel-vis-heatmap svg rect {
+  transition: opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1), fill 0.35s ease, stroke 0.35s ease, stroke-width 0.2s ease !important;
+}
+
+/* Base fade-in animation for the panel when rendered */
+@keyframes fadeInHeat {
+  from {
+    opacity: 0;
+    transform: scale(0.995);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+#panel-vis-heatmap {
+  animation: fadeInHeat 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+

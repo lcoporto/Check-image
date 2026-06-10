@@ -25,7 +25,10 @@ import {
   CreditCard,
   QrCode,
   Check,
-  ExternalLink
+  ExternalLink,
+  Copy,
+  Accessibility,
+  Info
 } from "lucide-react";
 import { AnalysisMode, AnalysisResult, AnalyzedRegion, PresetExample } from "./types";
 import { PRESETS } from "./data";
@@ -34,9 +37,22 @@ import CompareSideBySide from "./components/CompareSideBySide";
 
 export default function App() {
   const [selectedPresetId, setSelectedPresetId] = useState<string>("protesto-politico");
+  
+  // Accessibility state
+  const [highContrast, setHighContrast] = useState<boolean>(() => {
+    return localStorage.getItem("high-contrast") === "true";
+  });
+
+  const toggleHighContrast = () => {
+    const newVal = !highContrast;
+    setHighContrast(newVal);
+    localStorage.setItem("high-contrast", String(newVal));
+  };
+
   const [currentAnalysis, setCurrentAnalysis] = useState<AnalysisResult | null>(null);
   const [activeTab, setActiveTab] = useState<"geral" | "metadados" | "laudo">("geral");
   const [visualizerTab, setVisualizerTab] = useState<"heatmap" | "compare">("heatmap");
+  const [showHeatmapTooltip, setShowHeatmapTooltip] = useState<boolean>(false);
   
   // File upload state variables
   const [isDragOver, setIsDragOver] = useState(false);
@@ -66,22 +82,136 @@ export default function App() {
 
   // Monetization states
   const [paymentStatus, setPaymentStatus] = useState<"unpaid" | "submitted" | "approved" | "rejected">("unpaid");
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<"mercadopago">("mercadopago");
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<"mercadopago" | "pix">("mercadopago");
   const [paymentProcessing, setPaymentProcessing] = useState<boolean>(false);
-  const [submittedPaymentMethod, setSubmittedPaymentMethod] = useState<"mercadopago" | null>(null);
+  const [submittedPaymentMethod, setSubmittedPaymentMethod] = useState<"mercadopago" | "pix" | null>(null);
   const [paymentTxId, setPaymentTxId] = useState<string>("");
+  const [copiedPix, setCopiedPix] = useState<boolean>(false);
+  const [generatedPixKey, setGeneratedPixKey] = useState<string>("");
+
+  // Generate dynamic random PIX key to simulate real-world behavior
+  useEffect(() => {
+    if (selectedPaymentMethod === "pix" && !generatedPixKey) {
+      const chars = "ABCDEF0123456789";
+      let randomHex = "";
+      for (let i = 0; i < 12; i++) {
+        randomHex += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      const randomId = Math.random().toString(36).substring(2, 10).toUpperCase() + "-" + randomHex;
+      setGeneratedPixKey(`00020101021226830014br.gov.bcb.pix0136E690B195-2026-4B85-8D4C-${randomId}52040000530398654046.905802BR5917PORTO-CHECK-IMAGE6009SAO-PAULO62070503***6304`);
+    }
+  }, [selectedPaymentMethod, generatedPixKey]);
+
+  const handleCopyPix = () => {
+    if (!generatedPixKey) return;
+    navigator.clipboard.writeText(generatedPixKey).then(() => {
+      setCopiedPix(true);
+      setTimeout(() => setCopiedPix(false), 2000);
+    });
+  };
   
   const hasPaid = paymentStatus === "approved";
 
-  const handleSimulatePayment = (method: "mercadopago") => {
+  const handleSimulatePayment = (method: "mercadopago" | "pix") => {
     setPaymentProcessing(true);
     setTimeout(() => {
       setPaymentProcessing(false);
       setPaymentStatus("submitted");
       setSubmittedPaymentMethod(method);
-      const hash = "TX-" + Math.floor(100000 + Math.random() * 900000) + "-MPAGO";
+      const hash = "TX-" + Math.floor(100000 + Math.random() * 900000) + (method === "mercadopago" ? "-MPAGO" : "-PIX");
       setPaymentTxId(hash);
     }, 1500);
+  };
+
+  const handleModeKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>) => {
+    const modes = [AnalysisMode.RAPIDO, AnalysisMode.COMPLETO, AnalysisMode.ULTRA];
+    const currentIndex = modes.indexOf(selectedMode);
+    let nextIndex = currentIndex;
+    
+    if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+      nextIndex = (currentIndex + 1) % modes.length;
+      e.preventDefault();
+    } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+      nextIndex = (currentIndex - 1 + modes.length) % modes.length;
+      e.preventDefault();
+    } else if (e.key === "Home") {
+      nextIndex = 0;
+      e.preventDefault();
+    } else if (e.key === "End") {
+      nextIndex = modes.length - 1;
+      e.preventDefault();
+    } else {
+      return;
+    }
+    
+    const nextMode = modes[nextIndex];
+    setSelectedMode(nextMode);
+    
+    // Focus the target element
+    setTimeout(() => {
+      const el = document.getElementById(`btn-mode-${nextMode}`);
+      if (el) el.focus();
+    }, 10);
+  };
+
+  const handleVisualizerTabKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>) => {
+    const tabs: ("heatmap" | "compare")[] = ["heatmap", "compare"];
+    const currentIndex = tabs.indexOf(visualizerTab);
+    let nextIndex = currentIndex;
+    
+    if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+      nextIndex = (currentIndex + 1) % tabs.length;
+      e.preventDefault();
+    } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+      nextIndex = (currentIndex - 1 + tabs.length) % tabs.length;
+      e.preventDefault();
+    } else if (e.key === "Home") {
+      nextIndex = 0;
+      e.preventDefault();
+    } else if (e.key === "End") {
+      nextIndex = tabs.length - 1;
+      e.preventDefault();
+    } else {
+      return;
+    }
+    
+    const nextTab = tabs[nextIndex];
+    setVisualizerTab(nextTab);
+    
+    setTimeout(() => {
+      const el = document.getElementById(`btn-vis-${nextTab}`);
+      if (el) el.focus();
+    }, 10);
+  };
+
+  const handleActiveTabKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>) => {
+    const tabs: ("geral" | "metadados")[] = ["geral", "metadados"];
+    const currentIndex = tabs.indexOf(activeTab);
+    let nextIndex = currentIndex;
+    
+    if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+      nextIndex = (currentIndex + 1) % tabs.length;
+      e.preventDefault();
+    } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+      nextIndex = (currentIndex - 1 + tabs.length) % tabs.length;
+      e.preventDefault();
+    } else if (e.key === "Home") {
+      nextIndex = 0;
+      e.preventDefault();
+    } else if (e.key === "End") {
+      nextIndex = tabs.length - 1;
+      e.preventDefault();
+    } else {
+      return;
+    }
+    
+    const nextTab = tabs[nextIndex];
+    setActiveTab(nextTab);
+    
+    setTimeout(() => {
+      const el = document.getElementById(`btn-tab-${nextTab}`);
+      if (el) el.focus();
+    }, 10);
   };
 
   // Load initial preset on mount
@@ -308,7 +438,9 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col selection:bg-blue-600 selection:text-white">
+    <div className={`min-h-screen text-slate-100 flex flex-col selection:bg-blue-600 selection:text-white transition-colors duration-200 ${
+      highContrast ? "high-contrast bg-black text-white" : "bg-slate-900"
+    }`}>
       {/* Upper Navigation Indicator line */}
       <div className="bg-gradient-to-r from-blue-700 via-indigo-600 to-rose-600 h-1.5 w-full"></div>
 
@@ -335,7 +467,22 @@ export default function App() {
             </div>
           </div>
           
-          <div className="flex items-center gap-3 text-xs text-slate-400">
+          <div className="flex items-center flex-wrap sm:flex-nowrap gap-3 text-xs text-slate-400">
+            <button
+              id="btn-accessibility-mode"
+              onClick={toggleHighContrast}
+              aria-label="Ativar Modo de Alto Contraste"
+              aria-pressed={highContrast}
+              className={`px-3 py-1.5 rounded-lg border text-xs font-semibold flex items-center gap-1.5 font-mono shrink-0 transition-all ${
+                highContrast 
+                  ? "bg-yellow-400 text-black border-yellow-300 font-bold hover:bg-yellow-500" 
+                  : "bg-slate-800/80 border-slate-700/60 text-slate-400 hover:border-slate-500 hover:text-slate-200"
+              }`}
+            >
+              <Accessibility className="w-3.5 h-3.5" />
+              <span>{highContrast ? "ALTO CONTRASTE: ATIVO" : "ALTO CONTRASTE"}</span>
+            </button>
+
             <div className={`px-3 py-1.5 rounded-lg border text-xs font-semibold flex items-center gap-1.5 font-mono shrink-0 ${
               hasPaid 
                 ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400" 
@@ -422,10 +569,14 @@ export default function App() {
                 </div>
               )}
               
-              <div className="grid grid-cols-3 gap-1.5 bg-slate-900 p-1.5 rounded-xl border border-slate-700/60 mb-4">
+              <div role="tablist" aria-label="Modo de Análise" className="grid grid-cols-3 gap-1.5 bg-slate-900 p-1.5 rounded-xl border border-slate-700/60 mb-4">
                 <button
                   id="btn-mode-rapido"
                   type="button"
+                  role="tab"
+                  aria-selected={selectedMode === AnalysisMode.RAPIDO}
+                  tabIndex={selectedMode === AnalysisMode.RAPIDO ? 0 : -1}
+                  onKeyDown={handleModeKeyDown}
                   disabled={!hasPaid}
                   onClick={() => setSelectedMode(AnalysisMode.RAPIDO)}
                   className={`py-2 px-1 rounded-lg text-[10px] sm:text-xs font-semibold tracking-wide transition-all flex flex-col items-center justify-center gap-0.5 ${
@@ -441,6 +592,10 @@ export default function App() {
                 <button
                   id="btn-mode-completo"
                   type="button"
+                  role="tab"
+                  aria-selected={selectedMode === AnalysisMode.COMPLETO}
+                  tabIndex={selectedMode === AnalysisMode.COMPLETO ? 0 : -1}
+                  onKeyDown={handleModeKeyDown}
                   disabled={!hasPaid}
                   onClick={() => setSelectedMode(AnalysisMode.COMPLETO)}
                   className={`py-2 px-1 rounded-lg text-[10px] sm:text-xs font-semibold tracking-wide transition-all flex flex-col items-center justify-center gap-0.5 ${
@@ -456,6 +611,10 @@ export default function App() {
                 <button
                   id="btn-mode-ultra"
                   type="button"
+                  role="tab"
+                  aria-selected={selectedMode === AnalysisMode.ULTRA}
+                  tabIndex={selectedMode === AnalysisMode.ULTRA ? 0 : -1}
+                  onKeyDown={handleModeKeyDown}
                   disabled={!hasPaid}
                   onClick={() => setSelectedMode(AnalysisMode.ULTRA)}
                   className={`py-2 px-1 rounded-lg text-[10px] sm:text-xs font-semibold tracking-wide transition-all flex flex-col items-center justify-center gap-0.5 relative overflow-hidden group ${
@@ -642,55 +801,209 @@ export default function App() {
                   </div>
                 </div>
 
+                {/* Seletor de Forma de Pagamento */}
+                {(paymentStatus === "unpaid" || paymentStatus === "rejected") && (
+                  <div className="grid grid-cols-2 gap-1 px-1 py-1 bg-slate-950/80 rounded-xl border border-slate-800/80 mb-1">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPaymentMethod("mercadopago")}
+                      className={`py-1.5 px-2 rounded-lg text-[9px] font-bold uppercase font-mono tracking-wider transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                        selectedPaymentMethod === "mercadopago"
+                          ? "bg-blue-600/20 text-blue-300 border border-blue-500/30 font-bold"
+                          : "text-slate-500 hover:text-slate-350 border border-transparent"
+                      }`}
+                    >
+                      <CreditCard className="w-3.5 h-3.5 shrink-0" />
+                      <span>Mercado Pago</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPaymentMethod("pix")}
+                      className={`py-1.5 px-2 rounded-lg text-[9px] font-bold uppercase font-mono tracking-wider transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                        selectedPaymentMethod === "pix"
+                          ? "bg-cyan-600/20 text-cyan-300 border border-cyan-500/30 font-bold"
+                          : "text-slate-500 hover:text-slate-350 border border-transparent"
+                      }`}
+                    >
+                      <QrCode className="w-3.5 h-3.5 shrink-0" />
+                      <span>PIX Copia e Cola</span>
+                    </button>
+                  </div>
+                )}
+
                 {paymentStatus === "unpaid" || paymentStatus === "rejected" ? (
                   <>
-                    {/* MERCADO PAGO OPTION CHECKOUT */}
-                    <div className="bg-gradient-to-r from-blue-950/90 to-slate-900 border border-blue-500/40 rounded-xl p-3 flex flex-col gap-2 relative overflow-hidden animate-fadeIn shadow-lg">
-                      <div className="absolute top-0 right-0 w-16 h-16 bg-blue-500/10 rounded-full blur-xl pointer-events-none"></div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-[8.5px] uppercase tracking-wider font-mono text-blue-400 font-bold block flex items-center gap-1">
-                          <Sparkles className="w-3 h-3 text-blue-400 shrink-0" /> Link de Pagamento Oficial
-                        </span>
-                        <span className="text-[8px] bg-blue-500/20 border border-blue-500/30 px-1.5 py-0.5 rounded font-bold text-blue-300">Mercado Pago</span>
-                      </div>
-                      
-                      <p className="text-[10px] text-slate-300 leading-relaxed">
-                        Pague de forma imediata e assegurada no **Mercado Pago**. Após a confirmação, o painel do seu Verificador será liberado integralmente.
-                      </p>
+                    {selectedPaymentMethod === "mercadopago" ? (
+                      /* MERCADO PAGO OPTION CHECKOUT */
+                      <div className="bg-gradient-to-r from-blue-950/90 to-slate-900 border border-blue-500/40 rounded-xl p-3 flex flex-col gap-2 relative overflow-hidden animate-fadeIn shadow-lg">
+                        <div className="absolute top-0 right-0 w-16 h-16 bg-blue-500/10 rounded-full blur-xl pointer-events-none"></div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[8.5px] uppercase tracking-wider font-mono text-blue-400 font-bold block flex items-center gap-1">
+                            <Sparkles className="w-3 h-3 text-blue-400 shrink-0" /> Link de Pagamento Oficial
+                          </span>
+                          <span className="text-[8px] bg-blue-500/20 border border-blue-500/30 px-1.5 py-0.5 rounded font-bold text-blue-300">Mercado Pago</span>
+                        </div>
+                        
+                        <p className="text-[10px] text-slate-300 leading-relaxed">
+                          Pague de forma imediata e assegurada no **Mercado Pago**. Após a confirmação, o painel do seu Verificador será liberado integralmente.
+                        </p>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 mt-1">
-                        <a
-                          href="https://mpago.la/1ro2rPV"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          id="btn-mercadopago-direct"
-                          className="bg-blue-600 hover:bg-blue-500 active:scale-98 text-white py-1.5 px-3 rounded-lg text-[9.5px] font-bold font-mono uppercase tracking-wide transition-all shadow-md flex items-center justify-center gap-1.5 no-underline text-center cursor-pointer hover:shadow-[0_0_10px_rgba(59,130,246,0.3)] font-semibold"
-                        >
-                          <span>Pagar R$ 9,90</span>
-                          <ExternalLink className="w-3.5 h-3.5 shrink-0" />
-                        </a>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 mt-1">
+                          <a
+                            href="https://mpago.la/1ro2rPV"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            id="btn-mercadopago-direct"
+                            className="bg-blue-600 hover:bg-blue-500 active:scale-98 text-white py-1.5 px-3 rounded-lg text-[9.5px] font-bold font-mono uppercase tracking-wide transition-all shadow-md flex items-center justify-center gap-1.5 no-underline text-center cursor-pointer hover:shadow-[0_0_10px_rgba(59,130,246,0.3)] font-semibold"
+                          >
+                            <span>Pagar R$ 6,90</span>
+                            <ExternalLink className="w-3.5 h-3.5 shrink-0" />
+                          </a>
 
-                        <button
-                          type="button"
-                          id="btn-mercadopago-simulate"
-                          onClick={() => handleSimulatePayment("mercadopago")}
-                          disabled={paymentProcessing}
-                          className="bg-slate-950 hover:bg-slate-900 border border-blue-900/50 hover:border-blue-500 active:scale-98 text-blue-400 py-1.5 px-3 rounded-lg text-[9.5px] font-bold font-mono uppercase tracking-wide transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
-                        >
-                          {paymentProcessing ? (
-                            <>
-                              <RefreshCw className="w-3 h-3 animate-spin text-blue-400" />
-                              <span>Enviando...</span>
-                            </>
-                          ) : (
-                            <>
-                              <RefreshCw className="w-3 h-3 text-blue-500 animate-pulse" />
-                              <span>Simular Confirmação</span>
-                            </>
-                          )}
-                        </button>
+                          <button
+                            type="button"
+                            id="btn-mercadopago-simulate"
+                            onClick={() => handleSimulatePayment("mercadopago")}
+                            disabled={paymentProcessing}
+                            className="bg-slate-950 hover:bg-slate-900 border border-blue-900/50 hover:border-blue-500 active:scale-98 text-blue-400 py-1.5 px-3 rounded-lg text-[9.5px] font-bold font-mono uppercase tracking-wide transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                          >
+                            {paymentProcessing ? (
+                              <>
+                                <RefreshCw className="w-3 h-3 animate-spin text-blue-400" />
+                                <span>Enviando...</span>
+                              </>
+                            ) : (
+                              <>
+                                <RefreshCw className="w-3 h-3 text-blue-500 animate-pulse" />
+                                <span>Simular Confirmação</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
                       </div>
-                    </div>
+                    ) : (
+                      /* PIX COPIA E COLA */
+                      <div className="bg-gradient-to-r from-cyan-950/70 to-slate-950 border border-cyan-500/40 rounded-xl p-3 flex flex-col gap-2.5 relative overflow-hidden animate-fadeIn shadow-lg text-left">
+                        <div className="absolute top-0 right-0 w-20 h-20 bg-cyan-500/10 rounded-full blur-2xl pointer-events-none"></div>
+                        <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
+                          <span className="text-[8.5px] uppercase tracking-wider font-mono text-cyan-400 font-bold block flex items-center gap-1">
+                            <Sparkles className="w-3 h-3 text-cyan-400 shrink-0 animate-pulse" /> PIX Dinâmico Instantâneo
+                          </span>
+                          <span className="text-[8px] bg-cyan-500/20 border border-cyan-500/30 px-1.5 py-0.5 rounded font-bold text-cyan-300">Porto Pay</span>
+                        </div>
+
+                        <div className="flex flex-col sm:flex-row items-center gap-3 mt-1 bg-slate-900/40 p-2.5 rounded-lg border border-slate-800">
+                          {/* QR CODE GENERATOR MOCK SVG */}
+                          <div className="bg-white p-2 rounded-lg flex items-center justify-center shrink-0 shadow-md">
+                            <svg width="100" height="100" viewBox="0 0 100 100" className="text-slate-950">
+                              {/* Background */}
+                              <rect width="100" height="100" fill="#FFFFFF" />
+                              {/* Position Indicators */}
+                              {/* Top Left */}
+                              <rect x="5" y="5" width="25" height="25" fill="#0C1B2A" />
+                              <rect x="10" y="10" width="15" height="15" fill="#FFFFFF" />
+                              <rect x="13" y="13" width="9" height="9" fill="#0EA5E9" />
+                              
+                              {/* Top Right */}
+                              <rect x="70" y="5" width="25" height="25" fill="#0C1B2A" />
+                              <rect x="75" y="10" width="15" height="15" fill="#FFFFFF" />
+                              <rect x="78" y="13" width="9" height="9" fill="#0EA5E9" />
+                              
+                              {/* Bottom Left */}
+                              <rect x="5" y="70" width="25" height="25" fill="#0C1B2A" />
+                              <rect x="10" y="75" width="15" height="15" fill="#FFFFFF" />
+                              <rect x="13" y="78" width="9" height="9" fill="#0EA5E9" />
+
+                              {/* PIX Center Logo */}
+                              <rect x="42" y="42" width="16" height="16" rx="3" fill="#0EA5E9" />
+                              <path d="M46 50L49 53L54 47" stroke="#FFFFFF" fill="none" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+
+                              {/* Random QR Pixels (Aesthetically designed) */}
+                              <g fill="#0C1B2A">
+                                <rect x="35" y="10" width="5" height="5" />
+                                <rect x="45" y="5" width="5" height="5" />
+                                <rect x="55" y="15" width="10" height="5" />
+                                <rect x="35" y="25" width="5" height="5" />
+                                <rect x="45" y="20" width="10" height="5" />
+                                <rect x="10" y="35" width="5" height="10" />
+                                <rect x="20" y="45" width="10" height="5" />
+                                <rect x="5" y="55" width="15" height="5" />
+                                <rect x="35" y="70" width="5" height="10" />
+                                <rect x="40" y="85" width="5" height="5" />
+                                <rect x="55" y="75" width="5" height="5" />
+                                <rect x="65" y="70" width="10" height="5" />
+                                <rect x="80" y="35" width="5" height="15" />
+                                <rect x="70" y="45" width="5" height="5" />
+                                <rect x="90" y="55" width="5" height="10" />
+                                <rect x="75" y="80" width="5" height="15" />
+                                <rect x="85" y="75" width="10" height="5" />
+                                <rect x="80" y="90" width="10" height="5" />
+                                <rect x="45" y="60" width="10" height="5" />
+                                <rect x="35" y="50" width="5" height="5" />
+                                <rect x="60" y="50" width="5" height="5" />
+                                <rect x="60" y="35" width="5" height="10" />
+                              </g>
+                            </svg>
+                          </div>
+
+                          <div className="flex-1 w-full flex flex-col gap-1.5">
+                            <div className="flex justify-between items-center">
+                              <span className="text-[10px] text-slate-400 font-sans font-medium">Chave PIX Copia e Cola:</span>
+                              <span className="text-[9px] font-mono text-cyan-400 font-bold bg-cyan-950/40 px-1.5 py-0.5 rounded border border-cyan-800/30">R$ 6,90</span>
+                            </div>
+                            
+                            <div className="flex items-center gap-1 bg-slate-950 p-1.5 rounded-lg border border-slate-800">
+                              <input
+                                type="text"
+                                readOnly
+                                value={generatedPixKey || "Carregando chave..."}
+                                className="bg-transparent border-none text-[8.5px] font-mono text-slate-300 flex-1 outline-none select-all overflow-ellipsis"
+                              />
+                              <button
+                                type="button"
+                                onClick={handleCopyPix}
+                                className="bg-slate-900 hover:bg-slate-800 p-1.5 rounded border border-slate-700/50 hover:border-cyan-500/50 text-cyan-400 active:scale-95 transition-all shrink-0 cursor-pointer"
+                                title="Copiar código PIX"
+                              >
+                                {copiedPix ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                              </button>
+                            </div>
+
+                            {copiedPix && (
+                              <div className="text-[8px] font-bold text-center text-emerald-400 animate-pulse uppercase tracking-wider font-mono mt-0.5">
+                                ✓ Código PIX copiado para a área de transferência!
+                              </div>
+                            )}
+
+                            <p className="text-[8px] text-slate-400 leading-normal mt-0.5">
+                              Abra o app do seu banco, escolha <strong>PIX Copia e Cola</strong> (ou aponte a câmera para o QR Code) e confirme o valor de R$ 6,90.
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-1.5">
+                          <button
+                            type="button"
+                            id="btn-pix-simulate"
+                            onClick={() => handleSimulatePayment("pix")}
+                            disabled={paymentProcessing}
+                            className="bg-cyan-600 hover:bg-cyan-500 active:scale-98 text-slate-950 py-1.5 px-3 rounded-lg text-[9.5px] font-bold font-mono uppercase tracking-wide transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 hover:shadow-[0_0_10px_rgba(6,182,212,0.3)]"
+                          >
+                            {paymentProcessing ? (
+                              <>
+                                <RefreshCw className="w-3 h-3 animate-spin text-slate-950" />
+                                <span>Verificando Transferência...</span>
+                              </>
+                            ) : (
+                              <>
+                                <CheckCircle2 className="w-3.5 h-3.5 text-slate-950 animate-pulse" />
+                                <span>Simular Confirmação de PIX</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    )}
 
                     {paymentStatus === "rejected" && (
                       <div className="bg-rose-500/10 border border-rose-500/20 text-rose-450 p-2 rounded-lg text-[9.5px] font-mono leading-snug animate-fadeIn">
@@ -708,10 +1021,15 @@ export default function App() {
 
                     <div className="text-[10px] text-slate-300 space-y-1 font-mono leading-relaxed bg-slate-900/50 p-2.5 rounded-lg border border-slate-800/80">
                       <div><span className="text-slate-500 font-semibold font-sans">ID Transação:</span> <span className="text-slate-200 font-bold font-mono">{paymentTxId}</span></div>
-                      <div><span className="text-slate-500 font-semibold font-sans">Método Usado:</span> <span className="text-slate-200 uppercase font-bold">Mercado Pago (Link Seguro)</span></div>
-                      <div><span className="text-slate-500 font-semibold font-sans">Valor Cobrado:</span> <span className="text-slate-200 font-bold">R$ 9,90</span></div>
+                      <div><span className="text-slate-500 font-semibold font-sans">Método Usado:</span> <span className="text-slate-200 uppercase font-bold">{submittedPaymentMethod === "pix" ? "PIX Copia e Cola" : "Mercado Pago (Link Seguro)"}</span></div>
+                      <div><span className="text-slate-500 font-semibold font-sans">Valor Cobrado:</span> <span className="text-slate-200 font-bold">R$ 6,90</span></div>
                       <div><span className="text-slate-500 font-semibold font-sans">E-mail Comprador:</span> <span className="text-slate-200 font-mono">lcoporto@gmail.com</span></div>
-                      <div><span className="text-slate-500 font-semibold font-sans">Gateway de Liquidação:</span> <span className="text-blue-400 font-bold font-mono">Mercado Pago</span></div>
+                      <div>
+                        <span className="text-slate-500 font-semibold font-sans">Gateway de Liquidação:</span>{" "}
+                        <span className={`${submittedPaymentMethod === "pix" ? "text-cyan-400" : "text-blue-400"} font-bold font-mono`}>
+                          {submittedPaymentMethod === "pix" ? "Porto Pay / Pix Instantâneo" : "Mercado Pago"}
+                        </span>
+                      </div>
                     </div>
 
                     <p className="text-[10px] text-slate-400 leading-snug px-1">
@@ -1097,10 +1415,15 @@ export default function App() {
               
               {/* Visualizer Mode Selector Tabs */}
               <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-800/80 gap-1">
+                <div role="tablist" aria-label="Controle de Visualização" className="flex bg-slate-950 p-1 rounded-xl border border-slate-800/80 gap-1">
                   <button
                     id="btn-vis-heatmap"
                     type="button"
+                    role="tab"
+                    aria-selected={visualizerTab === "heatmap"}
+                    aria-controls="panel-vis-heatmap"
+                    tabIndex={visualizerTab === "heatmap" ? 0 : -1}
+                    onKeyDown={handleVisualizerTabKeyDown}
                     onClick={() => setVisualizerTab("heatmap")}
                     className={`px-3.5 py-1.5 rounded-lg text-[10.5px] uppercase font-bold tracking-wider transition-all flex items-center gap-2 ${
                       visualizerTab === "heatmap"
@@ -1114,6 +1437,11 @@ export default function App() {
                   <button
                     id="btn-vis-compare"
                     type="button"
+                    role="tab"
+                    aria-selected={visualizerTab === "compare"}
+                    aria-controls="panel-vis-compare"
+                    tabIndex={visualizerTab === "compare" ? 0 : -1}
+                    onKeyDown={handleVisualizerTabKeyDown}
                     onClick={() => setVisualizerTab("compare")}
                     className={`px-3.5 py-1.5 rounded-lg text-[10.5px] uppercase font-bold tracking-wider transition-all flex items-center gap-2 ${
                       visualizerTab === "compare"
@@ -1133,7 +1461,14 @@ export default function App() {
 
               {/* Conditionally Render Visualizer components */}
               {visualizerTab === "heatmap" ? (
-                <div className="bg-slate-800/90 rounded-2xl border border-slate-700/50 p-5 shadow-xl">
+                <div 
+                  id="panel-vis-heatmap" 
+                  role="tabpanel" 
+                  aria-labelledby="btn-vis-heatmap" 
+                  className="relative bg-slate-800/90 rounded-2xl border border-slate-700/50 p-5 shadow-xl transition-all duration-200"
+                  onMouseEnter={() => setShowHeatmapTooltip(true)}
+                  onMouseLeave={() => setShowHeatmapTooltip(false)}
+                >
                   <ImageHeatmap
                     imageUrl={currentImageUrl}
                     regions={currentAnalysis.regions}
@@ -1142,9 +1477,22 @@ export default function App() {
                     selectedRegionId={selectedRegionId}
                     onSelectRegion={(id) => setSelectedRegionId(id)}
                   />
+
+                  {/* Heatmap density explanation tooltip */}
+                  {showHeatmapTooltip && (
+                    <div className="absolute top-2.5 right-2.5 z-30 max-w-[280px] sm:max-w-xs bg-slate-950/95 border border-slate-700/90 text-slate-100 text-[11px] p-2.5 rounded-xl shadow-2xl animate-in fade-in slide-in-from-top-1 duration-150 flex items-start gap-1.5 pointer-events-none transition-all">
+                      <Info className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                      <div className="flex flex-col gap-0.5">
+                        <span className="font-semibold text-slate-200 text-xs">Entendendo o Mapa de Calor</span>
+                        <p className="text-slate-300 leading-normal font-sans">
+                          Este mapa de calor reflete a probabilidade e densidade de alterações ou manipulações detectadas na imagem original através da análise forense computacional.
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
-                <div className="bg-slate-800/90 rounded-2xl border border-slate-700/50 p-5 shadow-xl">
+                <div id="panel-vis-compare" role="tabpanel" aria-labelledby="btn-vis-compare" className="bg-slate-800/90 rounded-2xl border border-slate-700/50 p-5 shadow-xl">
                   <CompareSideBySide
                     suspectImageUrl={currentImageUrl}
                     suspectAnalysis={currentAnalysis}
@@ -1454,9 +1802,14 @@ export default function App() {
 
               {/* Workstation Tabs: General Findings vs. Metadata Forensics */}
               <div className="bg-slate-800/80 rounded-2xl border border-slate-700/50 p-5 shadow-xl">
-                <div className="flex border-b border-slate-700 mb-4 gap-2">
+                <div role="tablist" aria-label="Informações Forenses" className="flex border-b border-slate-700 mb-4 gap-2">
                   <button
                     id="btn-tab-geral"
+                    role="tab"
+                    aria-selected={activeTab === "geral"}
+                    aria-controls="panel-tab-geral"
+                    tabIndex={activeTab === "geral" ? 0 : -1}
+                    onKeyDown={handleActiveTabKeyDown}
                     onClick={() => setActiveTab("geral")}
                     className={`pb-2.5 px-2 text-xs font-semibold uppercase tracking-wider relative transition-all ${
                       activeTab === "geral" 
@@ -1468,6 +1821,11 @@ export default function App() {
                   </button>
                   <button
                     id="btn-tab-metadados"
+                    role="tab"
+                    aria-selected={activeTab === "metadados"}
+                    aria-controls="panel-tab-metadados"
+                    tabIndex={activeTab === "metadados" ? 0 : -1}
+                    onKeyDown={handleActiveTabKeyDown}
                     onClick={() => setActiveTab("metadados")}
                     className={`pb-2.5 px-2 text-xs font-semibold uppercase tracking-wider relative transition-all ${
                       activeTab === "metadados" 
@@ -1480,7 +1838,7 @@ export default function App() {
                 </div>
 
                 {activeTab === "geral" ? (
-                  <div className="space-y-4">
+                  <div id="panel-tab-geral" role="tabpanel" aria-labelledby="btn-tab-geral" className="space-y-4">
                     {/* General analysis text summary */}
                     <div className="bg-slate-900/50 rounded-xl p-3.5 border border-slate-700/40 text-xs leading-relaxed text-slate-300">
                       <p className="font-semibold text-slate-100 flex items-center gap-1.5 mb-1 text-[12px]">
@@ -1584,7 +1942,7 @@ export default function App() {
                   </div>
                 ) : (
                   // Tab Meta
-                  <div className="space-y-4">
+                  <div id="panel-tab-metadados" role="tabpanel" aria-labelledby="btn-tab-metadados" className="space-y-4">
                     <div className="bg-slate-900/40 rounded-xl p-4 border border-slate-800">
                       <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-3">
                         <h4 className="font-display font-semibold text-xs text-blue-400 flex items-center gap-1.5">

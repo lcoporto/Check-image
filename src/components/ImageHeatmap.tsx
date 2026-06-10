@@ -156,12 +156,13 @@ export default function ImageHeatmap({
                   y={y}
                   width={w}
                   height={h}
-                  className={`${strokeColor} ${shouldPulse ? "animate-aura-pulse" : ""} transition-all duration-200 cursor-pointer`}
+                  className={`${strokeColor} ${shouldPulse ? "animate-aura-pulse" : ""} cursor-pointer`}
                   style={{
                     fill: fillColor,
                     opacity: isHovered || isSelected ? Math.min(1, opacity + 0.2) : opacity,
                     strokeDasharray: isSelected ? "none" : (region.category === "real" ? "1,1" : "3,2"),
-                    strokeWidth: isSelected || isHovered ? 2.5 : 1.2
+                    strokeWidth: isSelected || isHovered ? 2.5 : 1.2,
+                    transition: "opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1), fill 0.3s ease, stroke 0.3s ease, stroke-width 0.2s ease"
                   }}
                   onClick={() => onSelectRegion(isSelected ? null : region.id)}
                   onMouseEnter={() => setHoveredRegionId(region.id)}

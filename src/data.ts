@@ -18,7 +18,7 @@ export const PRESETS: PresetExample[] = [
       authenticityScore: 28, // 0-100 (weighted)
       confidence: 0.91,
       interpretationBand: {
-        label: "Provavelmente sintética",
+        label: "Provavelmente manipulada",
         description: "Fortes indícios de adulteração, manipulação parcial ou inserção de elementos artificiais sintéticos misturados a cenas reais.",
         classColor: "text-orange-600 dark:text-orange-400",
         bgColor: "bg-orange-500/10",
